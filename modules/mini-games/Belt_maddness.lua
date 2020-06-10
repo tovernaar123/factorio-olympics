@@ -3,18 +3,13 @@ local Global        = require "utils.global" --Used to prevent desynicing.
 local Gui           = require "expcore.gui._require"
 local tight         = Mini_games.new_game("Belt_madness")
 local config        = require "config.mini_games.belt"
-local walls = {}
 local save = {}
 save["tiles"] = {}
 save["entity"] = {}
 local variables = {}
 local centers = {}
-local markets = {}
-local entities = {}
-local started = {}
 local chests = {}
 local islands = {}
-local left_players = {}
 local chest_pos = {}
 local areas = {}
 
@@ -26,53 +21,47 @@ Global.register(
         chest_pos = tbl.chest_pos
     end
 )
---[[
-local function fill_chest(at_player)
-    entity
+local function clean_up(area)
+    local left_overs = variables["surface"].find_entities_filtered {area= area}
+    for i, ent in ipairs(left_overs) do
+        if ent.name ~= "market" and ent.name ~= "steel-chest" then
+            ent.destroy()
+        end
+    end
 end
-]]
 local function player_join_game(player, at_player)
     local level = variables.level
     local playerforce = player.force
     playerforce.manual_mining_speed_modifier = 100
 
     --island
-    local area = {}
-    area[1] = {}
-    area[2] = {}
-    area[1][1] = level.area[1][1]
-    area[1][2] = level.area[1][2]
-    area[2][1] = level.area[2][1]
-    area[2][2] = level.area[2][2]
-    area[1][1] = area[1][1] + at_player * 500
-    area[2][1] = area[2][1] + at_player * 500
+    local player_offset = at_player * 500
+    local level_area = level.area
+    local area = {
+        { level_area[1][1]+player_offset, level_area[1][2] },
+        { level_area[2][1]+player_offset, level_area[2][2] }
+    }
     islands[player.name] = area
-    areas[player.name] = area
-    local left_overs = variables["surface"].find_entities_filtered {area = area}
-    for i, ent in ipairs(left_overs) do
-        if ent.name ~= "red-chest" and ent.name ~= "steel-chest" then
-            ent.destroy()
-        end
-    end
+    clean_up(area)
     local tiles = {}
-    for i, tile in ipairs(save["tiles"]) do
+    for i,tile in ipairs(save["tiles"]) do
         tiles[i] = tile
-        tiles[i].position.x = tiles[i].position.x + at_player * 500
+        tiles[i].position.x = tiles[i].position.x +  player_offset
     end
     variables["surface"].set_tiles(tiles)
-    for i, entity in ipairs(save["entity"]) do
+    for i, entity in ipairs(save.entities) do
         local name = entity[1]
         local position = {}
         position.x = entity[2].x
         position.y = entity[2].y
         local force = entity[3]
         local minable = entity[4]
-        position.x = position.x + at_player * 500
+        position.x = position.x + player_offset
         local ent
         if entity[5] then
-            ent = variables["surface"].create_entity {name = name, position = position, force = force, direction = entity[5]}
+            ent = variables["surface"].create_entity{name = name , position = position , force = force ,direction = entity[5] }
         else
-            ent = variables["surface"].create_entity {name = name, position = position, force = force}
+            ent = variables["surface"].create_entity{name = name , position = position , force = force }
         end
         if ent.name == "red-chest" or ent.name == "steel-chest" then
             local p = entity[2]
@@ -85,62 +74,48 @@ local function player_join_game(player, at_player)
         end
         ent.minable = minable
     end
-    centers[player.name] = {}
-    centers[player.name].x = level.center.x
-    centers[player.name].y = level.center.y
-    centers[player.name].x = centers[player.name].x + at_player * 500
+
+    centers[player.name] = {
+        x = level.center.x + player_offset,
+        y = level.center.y
+    }
+
     local center = centers[player.name]
-    player.teleport({center.x, center.y}, level.surface)
+    player.teleport({center.x,center.y},level.surface)
 end
 
 local function level_save()
     local level = variables.level
-    for x = level.area[1][1], level.area[2][1] do
-        for y = level.area[1][2], level.area[2][2] do
-            local tile = variables["surface"].get_tile(x, y)
+    for x=level.area[1][1],level.area[2][1] do
+        for y = level.area[1][2],level.area[2][2] do
+            local tile = variables["surface"].get_tile(x,y)
             local table = {
                 name = tile.name,
                 position = tile.position
             }
-            save["tiles"][#save["tiles"] + 1] = table
+            save["tiles"][#save["tiles"]+1] = table
         end
     end
-
-    save["entity"] = variables["surface"].find_entities_filtered {area = level.area}
-    for i, entity in ipairs(save["entity"]) do
+    save.entities = variables["surface"].find_entities_filtered {area = level.area}
+    for i, entity in ipairs(save.entities) do
         local name = entity.name
         if name ~= "character" then
-            local position = entity.position
-            local force = entity.force
-            local minbale = entity.minable
             local table
-            if entity.supports_direction then
-                table = {name, position, force, minbale, entity.direction}
+            if entity.supports_direction  then
+                table = {name,entity.position, entity.force, entity.minable,entity.direction}
             else
-                table = {name, position, force, minbale}
+                table = {name,entity.position, entity.force, entity.minable}
             end
-            save["entity"][i] = table
+            save.entities[i] = table
         else
-            if i == #save["entity"] then
-                save["entity"][i] = nil
+            if i == #save.entities then
+                save.entities[i] = nil
             else
-                name = save["entity"][#save["entity"]].name
-                local position = save["entity"][#save["entity"]].position
-                local force = save["entity"][i].force
-                local minbale = save["entity"][i].minable
-                local table = {name, position, force, minbale}
-                --[[
-                if entity.name == "red-chest" or entity.name == "steel-chest"  then
-                if not chests[player.name]  then
-                    chests[player.name] = {}
-                    chests[player.name][1] = entity
-                    else
-                        chests[player.name][#chests[player.name] + 1] = entity
-                    end
-                end
-                ]]
-                save["entity"][i] = table
-                save["entity"][#save["entity"]] = nil
+                local ent = save.entities[#save.entities]
+                name = ent.name
+                local table = {name,ent.position, ent.force, ent.minable}
+                save.entities[i] = table
+                save.entities[#save.entities] = nil
             end
         end
     end
@@ -312,12 +287,7 @@ local function stop()
     }
 
     reset_table(centers)
-    reset_table(markets)
-    reset_table(entities)
-    reset_table(started)
-    reset_table(chests)
     reset_table(variables)
-    reset_table(left_players)
 end
 
 local function check_chest()
