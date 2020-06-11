@@ -11,14 +11,15 @@ local centers = {}
 local chests = {}
 local islands = {}
 local chest_pos = {}
-local areas = {}
 
 Global.register(
     {
-        chest_pos = chest_pos
+        chest_pos = chest_pos,
+        chests = chests
     },
     function(tbl)
         chest_pos = tbl.chest_pos
+        chests    = tbl.chests
     end
 )
 local function clean_up(area)
@@ -28,6 +29,9 @@ local function clean_up(area)
             ent.destroy()
         end
     end
+end
+local function fill_chests(player)
+    -- body
 end
 local function player_join_game(player, at_player)
     local level = variables.level
@@ -69,7 +73,7 @@ local function player_join_game(player, at_player)
                 chests[player.name] = {}
                 chests[player.name][1] = {ent,chest_pos[p.x..','..p.y]}
             else
-                chests[player.name][#chests[player.name] + 1] = {ent,chest_pos[entity]}
+                chests[player.name][#chests[player.name] + 1] = {ent,chest_pos[p.x..','..p.y]}
             end
         end
         ent.minable = minable
