@@ -1,8 +1,8 @@
-local Mini_games    = require "expcore.Mini_games"
-local Global        = require "utils.global" --Used to prevent desynicing.
-local Gui           = require "expcore.gui._require"
-local tight         = Mini_games.new_game("Belt_madness")
-local config        = require "config.mini_games.belt"
+local Mini_games = require "expcore.Mini_games"
+local Global = require "utils.global" --Used to prevent desynicing.
+local Gui = require "expcore.gui._require"
+local tight = Mini_games.new_game("Belt_madness")
+local config = require "config.mini_games.belt"
 local save = {}
 save["tiles"] = {}
 save["entity"] = {}
@@ -19,11 +19,11 @@ Global.register(
     },
     function(tbl)
         chest_pos = tbl.chest_pos
-        chests    = tbl.chests
+        chests = tbl.chests
     end
 )
 local function clean_up(area)
-    local left_overs = variables["surface"].find_entities_filtered {area= area}
+    local left_overs = variables["surface"].find_entities_filtered {area = area}
     for i, ent in ipairs(left_overs) do
         if ent.name ~= "market" and ent.name ~= "steel-chest" then
             ent.destroy()
@@ -31,26 +31,47 @@ local function clean_up(area)
     end
 end
 local function fill_chests(player)
-    -- body
+    for i, chest in ipairs(chests[player.name]) do
+        local index = chest[2]
+        local ent = chest[1]
+        local item_name = variables.level.chests[index].item
+        local inv = ent.get_inventory(defines.inventory.chest)
+        inv.clear()
+        if ent.name == "steel-chest" then
+            inv.insert({name = item_name, count = "20"})
+        else
+            inv.insert({name = item_name, count = "1"})
+        end
+    end
 end
 local function player_join_game(player, at_player)
     local level = variables.level
     local playerforce = player.force
+
+    player.set_controller{type = defines.controllers.god}
     playerforce.manual_mining_speed_modifier = 100
+    player.force.disable_all_prototypes()
+    player.cheat_mode = true
+    local recipeList = player.force.recipes
+    for index, item in pairs(variables.level.recipes) do
+        recipeList[item].enabled = true
+        player.insert(item)
+        player.set_quick_bar_slot(index, item)
+    end
 
     --island
     local player_offset = at_player * 500
     local level_area = level.area
     local area = {
-        { level_area[1][1]+player_offset, level_area[1][2] },
-        { level_area[2][1]+player_offset, level_area[2][2] }
+        {level_area[1][1] + player_offset, level_area[1][2]},
+        {level_area[2][1] + player_offset, level_area[2][2]}
     }
     islands[player.name] = area
     clean_up(area)
     local tiles = {}
-    for i,tile in ipairs(save["tiles"]) do
+    for i, tile in ipairs(save["tiles"]) do
         tiles[i] = tile
-        tiles[i].position.x = tiles[i].position.x +  player_offset
+        tiles[i].position.x = tiles[i].position.x + player_offset
     end
     variables["surface"].set_tiles(tiles)
     for i, entity in ipairs(save.entities) do
@@ -63,18 +84,30 @@ local function player_join_game(player, at_player)
         position.x = position.x + player_offset
         local ent
         if entity[5] then
-            ent = variables["surface"].create_entity{name = name , position = position , force = force ,direction = entity[5] }
+            ent =
+                variables["surface"].create_entity {
+                name = name,
+                position = position,
+                force = force,
+                direction = entity[5]
+            }
         else
-            ent = variables["surface"].create_entity{name = name , position = position , force = force }
+            ent = variables["surface"].create_entity {name = name, position = position, force = force}
         end
         if ent.name == "red-chest" or ent.name == "steel-chest" then
+            ent.operable = false
             local p = entity[2]
             if not chests[player.name] then
                 chests[player.name] = {}
-                chests[player.name][1] = {ent,chest_pos[p.x..','..p.y]}
+                chests[player.name][1] = {ent, chest_pos[p.x .. "," .. p.y]}
             else
-                chests[player.name][#chests[player.name] + 1] = {ent,chest_pos[p.x..','..p.y]}
+                chests[player.name][#chests[player.name] + 1] = {ent, chest_pos[p.x .. "," .. p.y]}
             end
+        elseif ent.name == "inserter" or ent.name == "fast-inserter" then
+            ent.operable = false
+            ent.minable = false
+            ent.rotatable = false
+            ent.active = false
         end
         ent.minable = minable
     end
@@ -85,19 +118,20 @@ local function player_join_game(player, at_player)
     }
 
     local center = centers[player.name]
-    player.teleport({center.x,center.y},level.surface)
+    player.teleport({center.x, center.y}, level.surface)
+    fill_chests(player)
 end
 
 local function level_save()
     local level = variables.level
-    for x=level.area[1][1],level.area[2][1] do
-        for y = level.area[1][2],level.area[2][2] do
-            local tile = variables["surface"].get_tile(x,y)
+    for x = level.area[1][1], level.area[2][1] do
+        for y = level.area[1][2], level.area[2][2] do
+            local tile = variables["surface"].get_tile(x, y)
             local table = {
                 name = tile.name,
                 position = tile.position
             }
-            save["tiles"][#save["tiles"]+1] = table
+            save["tiles"][#save["tiles"] + 1] = table
         end
     end
     save.entities = variables["surface"].find_entities_filtered {area = level.area}
@@ -105,10 +139,10 @@ local function level_save()
         local name = entity.name
         if name ~= "character" then
             local table
-            if entity.supports_direction  then
-                table = {name,entity.position, entity.force, entity.minable,entity.direction}
+            if entity.supports_direction then
+                table = {name, entity.position, entity.force, entity.minable, entity.direction}
             else
-                table = {name,entity.position, entity.force, entity.minable}
+                table = {name, entity.position, entity.force, entity.minable}
             end
             save.entities[i] = table
         else
@@ -117,14 +151,13 @@ local function level_save()
             else
                 local ent = save.entities[#save.entities]
                 name = ent.name
-                local table = {name,ent.position, ent.force, ent.minable}
+                local table = {name, ent.position, ent.force, ent.minable}
                 save.entities[i] = table
                 save.entities[#save.entities] = nil
             end
         end
     end
 end
-
 
 local function create_level()
     local level = variables.level
@@ -141,7 +174,7 @@ local function create_level()
             chest_input_position = item.input_position[1]
         end
         local input_chest =
-        variables.surface.create_entity {
+            variables.surface.create_entity {
             name = "steel-chest",
             position = chest_input_position,
             force = game.forces.player
@@ -149,7 +182,7 @@ local function create_level()
         input_chest.operable = false
         input_chest.minable = false
         local p = input_chest.position
-        chest_pos[p.x..','..p.y] = index
+        chest_pos[p.x .. "," .. p.y] = index
 
         local inserter_input_direction
         local inserter_input_position
@@ -162,7 +195,7 @@ local function create_level()
         end
 
         local input_inserter =
-        variables.surface.create_entity {
+            variables.surface.create_entity {
             name = "inserter",
             position = inserter_input_position,
             direction = util.oppositedirection(inserter_input_direction),
@@ -180,7 +213,7 @@ local function create_level()
             chest_output_position = item.output_position[1]
         end
         local output_chest =
-        variables.surface.create_entity {
+            variables.surface.create_entity {
             name = "red-chest",
             position = chest_output_position,
             force = game.forces.player
@@ -188,7 +221,7 @@ local function create_level()
         output_chest.operable = false
         output_chest.minable = false
         p = output_chest.position
-        chest_pos[p.x..','..p.y] = index
+        chest_pos[p.x .. "," .. p.y] = index
 
         local inserter_output_direction
         local inserter_output_position
@@ -201,7 +234,7 @@ local function create_level()
         end
 
         local output_inserter =
-        variables.surface.create_entity {
+            variables.surface.create_entity {
             name = "fast-inserter",
             position = inserter_output_position,
             direction = inserter_output_direction,
@@ -266,12 +299,7 @@ local function stop()
     local area = variables.level.area
     area[1][1] = area[1][1]
     area[2][1] = area[2][1]
-    local left_overs = variables["surface"].find_entities_filtered {area = area}
-    for i, ent in ipairs(left_overs) do
-        if ent.name ~= "red-chest" and ent.name ~= "steel-chest" then
-            ent.destroy()
-        end
-    end
+    clean_up(area)
 
     for i, entity in ipairs(save["entity"]) do
         local name = entity[1]
@@ -349,6 +377,73 @@ local function gui_callback(parent)
 
     return args
 end
+local function start_level(player,element,_)
+    if  element.caption == "start" then
+        local area = islands[player.name]
+        local ents = variables.surface.find_entities_filtered{area = area, name = {"fast-inserter","inserter"}}
+        for i,ent in ipairs(ents) do
+            ent.active = true
+        end
+        element.caption = "stop"
+    else
+        local area = islands[player.name]
+        local ents = variables.surface.find_entities_filtered{area = area, name = {"fast-inserter","inserter"}}
+        for i,ent in ipairs(ents) do
+            local dir = ent.direction
+            local pos = ent.position
+            local force = ent.force
+            local name = ent.name
+            ent.destroy()
+            local ent_new = variables.surface.create_entity {
+                name = name,
+                position = pos,
+                direction = dir,
+                force = force
+            }
+            ent_new.operable = false
+            ent_new.minable = false
+            ent_new.rotatable = false
+            ent_new.active = false
+        end
+        ents = variables.surface.find_entities_filtered{area = area, name = "item-on-ground"}
+        for i,ent in ipairs(ents) do
+            ent.destroy()
+        end
+        fill_chests(player)
+        element.caption = "start"
+    end
+end
+local function clear_level(player,element,_)
+    
+end
+
+--game gui
+local button_for_clear =
+Gui.element{
+    type = "button",
+    caption = "clear_level",
+}:on_click(function ()
+    game.print("Hi")
+end)
+
+local button =
+Gui.element{
+    type = "button",
+    caption = "start",
+}:on_click(start_level)
+
+local game_gui =
+Gui.element(function(event_trigger,parent)
+    local container = Gui.container(parent,event_trigger,200)
+    Gui.header(container,"Belt_maddness","For starting stoping the level.",true)
+    local scroll_table_buttons = Gui.scroll_table(container,250,2,"buttons")
+    button(scroll_table_buttons)
+    button_for_clear(scroll_table_buttons)
+    return container.parent
+
+end)
+:add_to_left_flow(false)
+Gui.left_toolbar_button('item/coin','money',game_gui,function(_)  return Mini_games.get_running_game() == "Belt_madness" end)
 
 tight:add_event(defines.events.on_player_changed_position, player_move)
 tight:add_on_nth_tick(100, check_chest)
