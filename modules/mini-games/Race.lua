@@ -155,11 +155,11 @@ local start = function(args)
         start_players[player.name] = player.name
         local pos
         if (variables["left"]) then
-            pos = {-85, -126 + variables["done_left"] * 5}
+            pos = {285, -156 + variables["done_left"] * 5}
             variables["done_left"] = variables["done_left"] + 1
             variables["left"] = false
         else
-            pos = {-75, -126 + variables["done_right"] * 5}
+            pos = {300, -156 + variables["done_right"] * 5}
             variables["done_right"] = variables["done_right"] + 1
             variables["left"] = true
         end
@@ -279,14 +279,14 @@ local player_move = function(event)
                         local car = cars[name]
                         if car then
                             if car.valid then
-                                car.teleport({276,-406})
-                                car.orientation = 0.25
+                                car.teleport({140,60})
+                                car.orientation = 0.5
                                 player_progress[name] = 1
                                 player.print("[font=default-bold]YOU CAN'T TAKE A SHURTCUT, CHEATER![/font]")
                             end
                         else
-                            variables["Dead_car"][name].position = {276,-406}
-                            variables["Dead_car"][name].orientation = 0.25
+                            variables["Dead_car"][name].position = {140,60}
+                            variables["Dead_car"][name].orientation = 0.5
                             player.print("[font=default-bold]YOU CAN'T TAKE A SHURTCUT, CHEATER![/font]")
                         end
                     end
