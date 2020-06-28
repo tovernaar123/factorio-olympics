@@ -11,15 +11,37 @@ local centers = {}
 local chests = {}
 local islands = {}
 local chest_pos = {}
+local started_players = {}
+local items = {}
+local won_players = {}
+local game_gui
+local button
+local spectator_gui
+local button_for_clear
+local update_specatator
 
 Global.register(
     {
         chest_pos = chest_pos,
-        chests = chests
+        items = items,
+        chests = chests,
+        centers = centers,
+        variables = variables,
+        save = save,
+        islands = islands,
+        started_players = started_players,
+        won_players = won_players
     },
     function(tbl)
         chest_pos = tbl.chest_pos
         chests = tbl.chests
+        centers = tbl.centers
+        variables = tbl.variables
+        save = tbl.save
+        islands = tbl.islands
+        started_players = tbl.started_players
+        items = tbl.items
+        won_players = tbl.won_players
     end
 )
 local function clean_up(area)
@@ -31,7 +53,7 @@ local function clean_up(area)
     end
 end
 local function fill_chests(player)
-    for i, chest in ipairs(chests[player.name]) do
+    for i, chest in ipairs(chests[player]) do
         local index = chest[2]
         local ent = chest[1]
         local item_name = variables.level.chests[index].item
@@ -48,7 +70,7 @@ local function player_join_game(player, at_player)
     local level = variables.level
     local playerforce = player.force
 
-    player.set_controller{type = defines.controllers.god}
+    player.set_controller {type = defines.controllers.god}
     playerforce.manual_mining_speed_modifier = 100
     player.force.disable_all_prototypes()
     player.cheat_mode = true
@@ -119,7 +141,7 @@ local function player_join_game(player, at_player)
 
     local center = centers[player.name]
     player.teleport({center.x, center.y}, level.surface)
-    fill_chests(player)
+    fill_chests(player.name)
 end
 
 local function level_save()
@@ -248,6 +270,8 @@ local function create_level()
 end
 
 local function start(args)
+    variables.joined_player = 0
+    variables.first_joins = game.connected_players
     variables["level"] = {}
     variables["surface"] = {}
     local level_index = args[1]
@@ -261,6 +285,9 @@ local function start(args)
         player_join_game(player, i - 1)
     end
     variables.tick = game.tick
+    for i, chest in ipairs(variables.level.chests) do
+        items[#items + 1] = chest.item
+    end
 end
 
 local function reset_table(table)
@@ -321,8 +348,100 @@ local function stop()
     reset_table(centers)
     reset_table(variables)
 end
+local function  get_table_lenght (table)
+    local count = 0
+    for _ in pairs(table) do count = count + 1 end
+    return count
+end
+local function check_player_chests(name)
+    local won = 0
+    for _, chest in ipairs(chests[name]) do
+        local index = chest[2]
+        local ent = chest[1]
+        if ent.name == "red-chest" then
+            local item_name = variables.level.chests[index].item
+            local inv = ent.get_inventory(defines.inventory.chest)
+            for _, item in ipairs(items) do
+                if item == item_name then
+                    local sucses = inv.get_item_count(item)
+                    if sucses == 21 then
+                        won = won + 1
+                        game.print(won.." lol")
+                        game.print(#variables.level.chests.." lol2")
+                        if won == #variables.level.chests then
+                            local player = game.players[name]
+                            local time = game.tick - variables.tick
+                            time = time/60
+                            won_players[name] = time
+                            started_players[name] = nil
+                            game.print(name.." has finshished with a time of "..time.." seconds placing him "..Nth(get_table_lenght(won_players)))
+                            player.set_controller {type = defines.controllers.spectator}
+                            --gui
+                            Gui.update_top_flow(player)
+                            Gui.toggle_left_element(player,game_gui,false)
+                            update_specatator(player)
+                            variables.players_won = variables.players_won + 1
+                            if variables.players_won-variables.joined_player >= #game.connected_players then
+                                Mini_games.stop_game()
+                            end
+                        end
+                    end
+                else
+                    local failed = inv.get_item_count(item)
+                    if failed > 0 then
+                        variables.surface.create_entity {
+                            name = "flying-text",
+                            position = ent.position,
+                            text = "Failed: this chest shood not contain any "..item..".",
+                            color = {r = 1}
+                        }
+                        local area = islands[name]
+                        local ents = variables.surface.find_entities_filtered {area = area, name = {"fast-inserter", "inserter"}}
+                        for _, inserter in ipairs(ents) do
+                            local dir = inserter.direction
+                            local pos = inserter.position
+                            local force = inserter.force
+                            local ent_name = inserter.name
+                            inserter.destroy()
+                            local ent_new =
+                                variables.surface.create_entity {
+                                name = ent_name,
+                                position = pos,
+                                direction = dir,
+                                force = force
+                            }
+                            ent_new.operable = false
+                            ent_new.minable = false
+                            ent_new.rotatable = false
+                            ent_new.active = false
+                        end
+                        ents = variables.surface.find_entities_filtered {area = area, name = "item-on-ground"}
+                        for _, ground_item in ipairs(ents) do
+                            ground_item.destroy()
+                        end
+                        for _, belt in pairs(variables.surface.find_entities_filtered {type = {"underground-belt", "transport-belt"}}) do
+                            for i = 1, 2 do
+                                belt.get_transport_line(i).clear()
+                            end
+                        end
+                        fill_chests(name)
+                        started_players[name] = nil
+                        --gui
+                        local Main_gui = Gui.get_left_element(game.players[name], game_gui)
+                        local table = Main_gui.container["buttons"].table
+                        table[button.name].caption = "start"
+                        return "done"
+                    end
+                end
+            end
+        end
+    end
+end
 
 local function check_chest()
+    for name, _ in pairs(started_players) do
+        check_player_chests(name)
+    end
 end
 
 local function insideBox(box, pos)
@@ -338,6 +457,7 @@ end
 
 local function player_move(event)
     local player = game.players[event.player_index]
+    if won_players[player.name] then return end
     if player.surface.name == variables.level.surface then --check if the player has not been tped away
         local center = centers[player.name]
         if center then
@@ -349,7 +469,26 @@ local function player_move(event)
         end
     end
 end
-
+local function player_join(event)
+    local player = game.players[event.player_index]
+    local result = false
+    for i,player_loop in ipairs(variables.first_joins) do
+        if player_loop.name == player.name then
+            result = true
+        end
+    end
+    if result then
+        local center = centers[player.name]
+        player.teleport({center.x, center.y}, variables.level.surface)
+    else
+        variables.joined_player = variables.joined_player +1
+    end
+end
+local function player_leave(event)
+    local player = game.players[event.player_index]
+    player.teleport({-35, 55}, "nauvis")
+end
+--gui
 local dorpdown_for_level =
     Gui.element {
     type = "drop-down",
@@ -377,24 +516,26 @@ local function gui_callback(parent)
 
     return args
 end
-local function start_level(player,element,_)
-    if  element.caption == "start" then
+local function start_level(player, element, _)
+    if element.caption == "start" then
         local area = islands[player.name]
-        local ents = variables.surface.find_entities_filtered{area = area, name = {"fast-inserter","inserter"}}
-        for i,ent in ipairs(ents) do
+        local ents = variables.surface.find_entities_filtered {area = area, name = {"fast-inserter", "inserter"}}
+        for i, ent in ipairs(ents) do
             ent.active = true
         end
+        started_players[player.name] = true
         element.caption = "stop"
     else
         local area = islands[player.name]
-        local ents = variables.surface.find_entities_filtered{area = area, name = {"fast-inserter","inserter"}}
-        for i,ent in ipairs(ents) do
+        local ents = variables.surface.find_entities_filtered {area = area, name = {"fast-inserter", "inserter"}}
+        for i, ent in ipairs(ents) do
             local dir = ent.direction
             local pos = ent.position
             local force = ent.force
             local name = ent.name
             ent.destroy()
-            local ent_new = variables.surface.create_entity {
+            local ent_new =
+                variables.surface.create_entity {
                 name = name,
                 position = pos,
                 direction = dir,
@@ -405,49 +546,109 @@ local function start_level(player,element,_)
             ent_new.rotatable = false
             ent_new.active = false
         end
-        ents = variables.surface.find_entities_filtered{area = area, name = "item-on-ground"}
-        for i,ent in ipairs(ents) do
+        ents = variables.surface.find_entities_filtered {area = area, name = "item-on-ground"}
+        for i, ent in ipairs(ents) do
             ent.destroy()
         end
-        fill_chests(player)
+        for _, belt in pairs(variables.surface.find_entities_filtered {name = {"underground-belt", "transport-belt"}}) do
+            for i = 1, 2 do
+                belt.get_transport_line(i).clear()
+            end
+        end
+        fill_chests(player.name)
+        started_players[player.name] = nil
         element.caption = "start"
     end
 end
-local function clear_level(player,element,_)
-    
+local function clear_level(player, _, _)
+    local area = islands[player.name]
+    local ents = variables.surface.find_entities_filtered {area = area, name = variables.level.recipes}
+    for i, ent in ipairs(ents) do
+        ent.destroy()
+    end
 end
 
+local function tp(player, element, _)
+    game.print(element.caption)
+    player.teleport(game.players[element.caption].position)
+end
 --game gui
-local button_for_clear =
-Gui.element{
+button_for_clear =
+    Gui.element {
     type = "button",
-    caption = "clear_level",
-}:on_click(function ()
-    game.print("Hi")
-end)
+    caption = "clear_level"
+}:on_click(clear_level)
 
-local button =
-Gui.element{
+button =
+    Gui.element {
     type = "button",
-    caption = "start",
+    caption = "start"
 }:on_click(start_level)
 
-local game_gui =
-Gui.element(function(event_trigger,parent)
-    local container = Gui.container(parent,event_trigger,200)
-    Gui.header(container,"Belt_maddness","For starting stoping the level.",true)
-    local scroll_table_buttons = Gui.scroll_table(container,250,2,"buttons")
-    button(scroll_table_buttons)
-    button_for_clear(scroll_table_buttons)
-    return container.parent
+game_gui =
+    Gui.element(
+    function(event_trigger, parent)
+        local container = Gui.container(parent, event_trigger, 200)
+        Gui.header(container, "Belt_maddness", "For starting stoping the level.", true)
+        local scroll_table_buttons = Gui.scroll_table(container, 250, 2, "buttons")
+        button(scroll_table_buttons)
+        button_for_clear(scroll_table_buttons)
+        return container.parent
+    end
+):add_to_left_flow(false)
+Gui.left_toolbar_button(
+    "item/coin",
+    "money",
+    game_gui,
+    function(player)
+        return Mini_games.get_running_game() == "Belt_madness" and not won_players[player.name]
+    end
+)
+local tp_button =
+    Gui.element {
+    type = "button",
+    caption = "start"
+}:on_click(tp)
 
-end)
-:add_to_left_flow(false)
-Gui.left_toolbar_button('item/coin','money',game_gui,function(_)  return Mini_games.get_running_game() == "Belt_madness" end)
+spectator_gui =
+Gui.element(
+    function(event_trigger, parent)
+        local container = Gui.container(parent, event_trigger, 200)
+        Gui.header(container, "Spectator menu", "You can use this to tp to other players.", true)
+        local scroll_table_buttons = Gui.scroll_table(container, 250, 1, "tp_buttons")
+        for i,_ in pairs(centers) do
+            local button_for_tp = tp_button(scroll_table_buttons)
+            button_for_tp.caption = i
+        end
+        return container.parent
+    end
+):add_to_left_flow(false)
+Gui.left_toolbar_button(
+    "utility/search_icon",
+    "spectator Menu",
+    spectator_gui,
+    function(player)
+        return Mini_games.get_running_game() == "Belt_madness" and won_players[player.name]
+    end
+)
+update_specatator = function (player)
+    local gui = Gui.get_left_element(player, spectator_gui)
+    local gui_table = gui.container["tp_buttons"].table
+    for player_name in pairs(centers) do
+        if player_name ~= player.name  then
+            local flow = Gui.alignment(gui_table,player_name,'center','top')
+            flow.style.width = 200
+            local button_for_tp = tp_button(flow)
+            button_for_tp.caption = player_name
+        end
+    end
+end
+
+
 
 tight:add_event(defines.events.on_player_changed_position, player_move)
 tight:add_on_nth_tick(100, check_chest)
-
+tight:add_event(defines.events.on_player_joined_game,player_join)
 tight:add_map("Belt_Madness", 0, 0)
 tight:set_start_function(start)
 tight:add_option(1)

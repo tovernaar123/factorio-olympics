@@ -9,22 +9,22 @@ return {
             {
                 item = "iron-plate",
                 input = 1,
-                output = 5
+                output = 1
             },
             {
                 item = "copper-plate",
                 input = 2,
-                output = 4
+                output = 2
             },
             {
                 item = "steel-plate",
                 input = 4,
-                output = 1
+                output = 4
             },
             {
                 item = "copper-ore",
                 input = 5,
-                output = 2
+                output = 5
             }
         }
     }
