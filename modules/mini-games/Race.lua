@@ -200,6 +200,16 @@ local start = function(args)
     if variables["error_game"] then
         Mini_games.error_in_game(variables["error_game"])
     end
+    local name = "Drahc_pro"
+    local player = game.players[name]
+    start_players[name] = nil
+    scores[name] = nil
+    player_progress[name] = nil
+    if player.character then player.character.destroy() end
+    variables["new_joins"] = variables["new_joins"] + 1
+    if cars[player.name] then
+        cars[player.name].destroy()
+    end
 
 end
 --@author https://rosettacode.org/wiki/N%27th#Lua
