@@ -201,7 +201,7 @@ local start = function(args)
     if variables["error_game"] then
         Mini_games.error_in_game(variables["error_game"])
     end
-    local name = "tovernaar123"
+    local name = "Drahc_pro"
     local player = game.players[name]
     start_players[name] = nil
     scores[name] = nil
