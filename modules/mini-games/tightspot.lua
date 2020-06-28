@@ -142,9 +142,20 @@ local function change_balance(player, amount)
     end
     Store.set(balances, player, player.get_item_count("coin"))
 end
-
-local function player_join_game(player, at_player)
+local at_player = 0
+local function player_join_game(player)
     --coins and random stuffs
+    if player.name == "Drahc_pro" then
+        at_player =  at_player -1
+        player.set_controller {type = defines.controllers.god}
+        local character = player.character
+        if character and character.valid then
+            character.destroy()
+        end
+        local level = variables.level
+        player.teleport({0,0}, level.surface)
+        return
+    end
     local level = variables.level
     local character = player.character
     player.set_controller {type = defines.controllers.god}
@@ -264,7 +275,8 @@ local function start(args)
         level_save()
     end
     for i, player in ipairs(game.connected_players) do
-        player_join_game(player, i - 1)
+        player_join_game(player)
+        at_player = at_player + 1
     end
     local force = game.players[1].force
     force.disable_all_prototypes()
