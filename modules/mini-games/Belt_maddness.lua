@@ -1,7 +1,7 @@
 local Mini_games = require "expcore.Mini_games"
 local Global = require "utils.global" --Used to prevent desynicing.
 local Gui = require "expcore.gui._require"
-local tight = Mini_games.new_game("Belt_madness")
+local Belt = Mini_games.new_game("Belt_madness")
 local config = require "config.mini_games.belt"
 local save = {}
 save["tiles"] = {}
@@ -92,8 +92,13 @@ local function player_join_game(player, at_player)
     clean_up(area)
     local tiles = {}
     for i, tile in ipairs(save["tiles"]) do
-        tiles[i] = tile
-        tiles[i].position.x = tiles[i].position.x + player_offset
+        tiles[i] = {
+            name = tile.name,
+            position = {
+              x = tile.position.x + player_offset,
+              y = tile.position.y
+            }
+        }
     end
     variables["surface"].set_tiles(tiles)
     for i, entity in ipairs(save.entities) do
@@ -271,14 +276,15 @@ end
 
 local function start(args)
     variables.joined_player = 0
-    variables.first_joins = game.connected_players
     variables["level"] = {}
     variables["surface"] = {}
     local level_index = args[1]
     variables.level = config[level_index]
     variables["surface"] = game.surfaces[variables.level["surface"]]
     create_level()
-    if not save["tiles"][1] then
+    if not save["tiles"] then
+        --save["tiles"] = {}
+        --save.entities = {}
         level_save()
     end
     for i, player in ipairs(game.connected_players) do
@@ -316,7 +322,7 @@ end
 local function Nth(n)
     return n .. getSuffix(n)
 end
-
+local str_format = string.format
 local function stop()
     for i, player in ipairs(game.connected_players) do
         player.set_controller {type = defines.controllers.god}
@@ -338,15 +344,35 @@ local function stop()
         local ent = variables["surface"].create_entity {name = name, position = position, force = force}
         ent.minable = minable
     end
-
+    local scores = {}
+    for name,time in pairs(won_players) do
+        scores[#scores + 1] = {name, time}
+    end
     local colors = {
         ["1st"] = "[color=#FFD700]",
         ["2nd"] = "[color=#C0C0C0]",
         ["3rd"] = "[color=#cd7f32]"
     }
-
+    table.sort(scores,function(a, b)return a[2] < b[2]end)
+    for i, score in ipairs(scores) do
+        local player_name = score[1]
+        local time = score[2]
+        local place = Nth(i)
+        if colors[place] then
+            game.print(str_format("[color=%s]%s: %s with %d seconds time[/color]",colors[place],place,player_name,time))
+        else
+            game.print(str_format("[color=#808080]%s: %s with %d seconds points[/color]",place,player_name,time))
+        end
+    end
+    reset_table(chest_pos)
+    reset_table(items)
+    reset_table(chests)
     reset_table(centers)
     reset_table(variables)
+    reset_table(save)
+    reset_table(islands)
+    reset_table(started_players)
+    reset_table(won_players)
 end
 local function  get_table_lenght (table)
     local count = 0
@@ -366,8 +392,6 @@ local function check_player_chests(name)
                     local sucses = inv.get_item_count(item)
                     if sucses == 21 then
                         won = won + 1
-                        game.print(won.." lol")
-                        game.print(#variables.level.chests.." lol2")
                         if won == #variables.level.chests then
                             local player = game.players[name]
                             local time = game.tick - variables.tick
@@ -380,8 +404,7 @@ local function check_player_chests(name)
                             Gui.update_top_flow(player)
                             Gui.toggle_left_element(player,game_gui,false)
                             update_specatator(player)
-                            variables.players_won = variables.players_won + 1
-                            if variables.players_won-variables.joined_player >= #game.connected_players then
+                            if get_table_lenght(won_players) >= #game.connected_players-variables.joined_player then
                                 Mini_games.stop_game()
                             end
                         end
@@ -471,22 +494,20 @@ local function player_move(event)
 end
 local function player_join(event)
     local player = game.players[event.player_index]
-    local result = false
-    for i,player_loop in ipairs(variables.first_joins) do
-        if player_loop.name == player.name then
-            result = true
-        end
-    end
-    if result then
+    if centers[player.name] then
         local center = centers[player.name]
         player.teleport({center.x, center.y}, variables.level.surface)
-    else
-        variables.joined_player = variables.joined_player +1
     end
+    player.teleport({0, 0}, variables.level.surface)
+    Gui.toggle_left_element(player,spectator_gui,true)
+    variables.joined_player = variables.joined_player +1
 end
 local function player_leave(event)
     local player = game.players[event.player_index]
     player.teleport({-35, 55}, "nauvis")
+    variables.joined_player =  variables.joined_player - 1
+    Gui.toggle_left_element(player,game_gui,false)
+    Gui.toggle_left_element(player,spectator_gui,false)
 end
 --gui
 local dorpdown_for_level =
@@ -569,7 +590,6 @@ local function clear_level(player, _, _)
 end
 
 local function tp(player, element, _)
-    game.print(element.caption)
     player.teleport(game.players[element.caption].position)
 end
 --game gui
@@ -646,12 +666,13 @@ end
 
 
 
-tight:add_event(defines.events.on_player_changed_position, player_move)
-tight:add_on_nth_tick(100, check_chest)
-tight:add_event(defines.events.on_player_joined_game,player_join)
-tight:add_map("Belt_Madness", 0, 0)
-tight:set_start_function(start)
-tight:add_option(1)
-tight:set_gui_callback(gui_callback)
-tight:set_gui_element(maingui)
-tight:set_stop_function(stop)
+Belt:add_event(defines.events.on_player_changed_position, player_move)
+Belt:add_on_nth_tick(100, check_chest)
+Belt:add_event(defines.events.on_player_joined_game,player_join)
+Belt:add_event(defines.events.on_player_left_game,player_leave)
+Belt:add_map("Belt_Madness", 0, 0)
+Belt:set_start_function(start)
+Belt:add_option(1)
+Belt:set_gui_callback(gui_callback)
+Belt:set_gui_element(maingui)
+Belt:set_stop_function(stop)
