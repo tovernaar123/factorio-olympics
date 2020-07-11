@@ -282,9 +282,7 @@ local function start(args)
     variables.level = config[level_index]
     variables["surface"] = game.surfaces[variables.level["surface"]]
     create_level()
-    if not save["tiles"] then
-        --save["tiles"] = {}
-        --save.entities = {}
+    if not save["tiles"][1] then
         level_save()
     end
     for i, player in ipairs(game.connected_players) do
@@ -359,7 +357,7 @@ local function stop()
         local time = score[2]
         local place = Nth(i)
         if colors[place] then
-            game.print(str_format("[color=%s]%s: %s with %d seconds time[/color]",colors[place],place,player_name,time))
+            game.print(str_format("%s%s: %s with %d seconds time[/color]",colors[place],place,player_name,time))
         else
             game.print(str_format("[color=#808080]%s: %s with %d seconds points[/color]",place,player_name,time))
         end
@@ -497,15 +495,19 @@ local function player_join(event)
     if centers[player.name] then
         local center = centers[player.name]
         player.teleport({center.x, center.y}, variables.level.surface)
+    else
+        player.teleport({0, 0}, variables.level.surface)
+        Gui.toggle_left_element(player,spectator_gui,true)
     end
-    player.teleport({0, 0}, variables.level.surface)
-    Gui.toggle_left_element(player,spectator_gui,true)
+    
     variables.joined_player = variables.joined_player +1
 end
 local function player_leave(event)
     local player = game.players[event.player_index]
     player.teleport({-35, 55}, "nauvis")
-    variables.joined_player =  variables.joined_player - 1
+    if  not won_players[player.name] then
+        variables.joined_player =  variables.joined_player - 1
+    end
     Gui.toggle_left_element(player,game_gui,false)
     Gui.toggle_left_element(player,spectator_gui,false)
 end
