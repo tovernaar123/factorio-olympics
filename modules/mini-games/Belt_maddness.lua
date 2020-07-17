@@ -282,9 +282,9 @@ local function start(args)
     variables.level = config[level_index]
     variables["surface"] = game.surfaces[variables.level["surface"]]
     create_level()
-    if not save["tiles"][1] then
-        level_save()
-    end
+    save["tiles"] = {}
+    save["entity"] = {}
+    level_save()
     for i, player in ipairs(game.connected_players) do
         player_join_game(player, i - 1)
     end
@@ -402,7 +402,7 @@ local function check_player_chests(name)
                             Gui.update_top_flow(player)
                             Gui.toggle_left_element(player,game_gui,false)
                             update_specatator(player)
-                            if get_table_lenght(won_players) >= #game.connected_players-variables.joined_player then
+                            if get_table_lenght(won_players) >= #game.connected_players - variables.joined_player then
                                 Mini_games.stop_game()
                             end
                         end
@@ -499,13 +499,12 @@ local function player_join(event)
         player.teleport({0, 0}, variables.level.surface)
         Gui.toggle_left_element(player,spectator_gui,true)
     end
-    
     variables.joined_player = variables.joined_player +1
 end
 local function player_leave(event)
     local player = game.players[event.player_index]
     player.teleport({-35, 55}, "nauvis")
-    if  not won_players[player.name] then
+    if  not centers[player.name] then
         variables.joined_player =  variables.joined_player - 1
     end
     Gui.toggle_left_element(player,game_gui,false)
